@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pomodoro</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            background: white;
+            color: black;
+            min-height: 100vh;
+            padding: 40px 30px;
+            max-width: 420px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            font-size: 14px;
+            font-weight: bold;
+            letter-spacing: 2px;
+            margin-bottom: 8px;
+        }
+        
+        .divider {
+            height: 1px;
+            background: black;
+            margin: 8px 0 30px 0;
+        }
+        
+        .timer {
+            font-size: 100px;
+            font-weight: bold;
+            text-align: center;
+            letter-spacing: 4px;
+            margin: 20px 0;
+        }
+        
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+        
+        .btn {
+            padding: 14px 40px;
+            font-size: 14px;
+            font-weight: bold;
+            letter-spacing: 1px;
+            cursor: pointer;
+            border: 1px solid black;
+            transition: all 0.2s;
+        }
+        
+        .btn-primary {
+            background: black;
+            color: white;
+        }
+        
+        .btn-secondary {
+            background: white;
+            color: black;
+        }
+        
+        .btn:hover {
+            opacity: 0.8;
+        }
+        
+        .section-title {
+            font-size: 10px;
+            font-weight: bold;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+        }
+        
+        .today-stats {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        
+        .today-count {
+            font-size: 14px;
+        }
+        
+        .today-time {
+            font-size: 14px;
+            color: gray;
+        }
+        
+        .total-row {
+            font-size: 11px;
+            color: gray;
+            margin-bottom: 20px;
+        }
+        
+        .chart {
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-between;
+            height: 60px;
+            margin-bottom: 20px;
+        }
+        
+        .chart-col {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            flex: 1;
+        }
+        
+        .chart-bar {
+            width: 12px;
+            background: black;
+            min-height: 2px;
+        }
+        
+        .chart-label {
+            font-size: 9px;
+            color: gray;
+            margin-top: 4px;
+        }
+        
+        .history-list {
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        
+        .history-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 0;
+            font-size: 12px;
+        }
+        
+        .history-date {
+            color: black;
+        }
+        
+        .history-stats {
+            color: gray;
+        }
+        
+        .test-sound {
+            font-size: 11px;
+            color: gray;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+        
+        .test-sound:hover {
+            color: black;
+        }
+    </style>
+</head>
+<body>
+    <h1>POMODORO</h1>
+    <div class="divider"></div>
+    
+    <div class="timer" id="timer">25:00</div>
+    
+    <div class="controls">
+        <button class="btn btn-primary" id="startBtn" onclick="toggle()">START</button>
+        <button class="btn btn-secondary" onclick="reset()">RESET</button>
+    </div>
+    
+    <div class="divider"></div>
+    
+    <div class="section-title">TODAY</div>
+    <div class="today-stats">
+        <span class="today-count" id="todayCount">0 pomodoros</span>
+        <span class="today-time" id="todayTime">0h 0m</span>
+    </div>
+    <div class="total-row">
+        TOTAL <span id="totalCount">0</span>
+    </div>
+    
+    <div class="divider"></div>
+    
+    <div class="section-title">HISTORY</div>
+    <div class="chart" id="chart"></div>
+    <div class="history-list" id="historyList"></div>
+    
+    <div class="test-sound" onclick="playSound()">TEST SOUND</div>
+
+    <script>
+        const WORK_TIME = 25 * 60;
+        let timeLeft = WORK_TIME;
+        let running = false;
+        let interval = null;
+
+        // 历史记录
+        function getHistory() {
+            const data = localStorage.getItem('pomodoro_history');
+            return data ? JSON.parse(data) : {};
+        }
+
+        function saveHistory(history) {
+            localStorage.setItem('pomodoro_history', JSON.stringify(history));
+        }
+
+        function getToday() {
+            return new Date().toISOString().split('T')[0];
+        }
+
+        function addPomodoro() {
+            const history = getHistory();
+            const today = getToday();
+            history[today] = (history[today] || 0) + 1;
+            saveHistory(history);
+            return history[today];
+        }
+
+        function getTodayCount() {
+            const history = getHistory();
+            return history[getToday()] || 0;
+        }
+
+        function getTotalCount() {
+            const history = getHistory();
+            return Object.values(history).reduce((a, b) => a + b, 0);
+        }
+
+        // 提示音
+        function playSound() {
+            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            
+            const melody = [
+                { freq: 523.25, time: 0, dur: 0.15 },
+                { freq: 659.25, time: 0.12, dur: 0.15 },
+                { freq: 783.99, time: 0.24, dur: 0.15 },
+                { freq: 1046.50, time: 0.36, dur: 0.2 },
+                { freq: 1318.51, time: 0.50, dur: 0.3 }
+            ];
+
+            melody.forEach(note => {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.type = 'sine';
+                osc.frequency.value = note.freq;
+                gain.gain.setValueAtTime(0.3, audioCtx.currentTime + note.time);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + note.time + note.dur);
+                osc.start(audioCtx.currentTime + note.time);
+                osc.stop(audioCtx.currentTime + note.time + note.dur);
+            });
+
+            // 和弦
+            setTimeout(() => {
+                [523.25, 659.25, 783.99, 1046.50].forEach(freq => {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.type = 'sine';
+                    osc.frequency.value = freq;
+                    gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+                    osc.start(audioCtx.currentTime);
+                    osc.stop(audioCtx.currentTime + 0.5);
+                });
+            }, 600);
+        }
+
+        // 计时器
+        function updateDisplay() {
+            const m = Math.floor(timeLeft / 60);
+            const s = timeLeft % 60;
+            document.getElementById('timer').textContent = 
+                `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+        }
+
+        function updateStats() {
+            const count = getTodayCount();
+            const minutes = count * 25;
+            const hours = Math.floor(minutes / 60);
+            const mins = minutes % 60;
+
+            document.getElementById('todayCount').textContent = `${count} pomodoros`;
+            document.getElementById('todayTime').textContent = `${hours}h ${mins}m`;
+            document.getElementById('totalCount').textContent = getTotalCount();
+        }
+
+        function updateChart() {
+            const history = getHistory();
+            const chart = document.getElementById('chart');
+            chart.innerHTML = '';
+
+            const days = [];
+            for (let i = 13; i >= 0; i--) {
+                const date = new Date();
+                date.setDate(date.getDate() - i);
+                const dateStr = date.toISOString().split('T')[0];
+                days.push({ date: dateStr, count: history[dateStr] || 0, day: date.getDate() });
+            }
+
+            const maxCount = Math.max(...days.map(d => d.count), 1);
+
+            days.forEach(d => {
+                const col = document.createElement('div');
+                col.className = 'chart-col';
+                
+                const bar = document.createElement('div');
+                bar.className = 'chart-bar';
+                bar.style.height = `${Math.max(2, (d.count / maxCount) * 40)}px`;
+                
+                const label = document.createElement('div');
+                label.className = 'chart-label';
+                label.textContent = d.day;
+                
+                col.appendChild(bar);
+                col.appendChild(label);
+                chart.appendChild(col);
+            });
+        }
+
+        function updateHistoryList() {
+            const history = getHistory();
+            const list = document.getElementById('historyList');
+            list.innerHTML = '';
+
+            const dates = Object.keys(history).sort().reverse().slice(0, 7);
+            const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+            dates.forEach(dateStr => {
+                const count = history[dateStr];
+                const date = new Date(dateStr);
+                const hours = Math.floor(count * 25 / 60);
+                const mins = (count * 25) % 60;
+                const weekday = weekdays[date.getDay()];
+
+                const row = document.createElement('div');
+                row.className = 'history-row';
+                row.innerHTML = `
+                    <span class="history-date">${date.getMonth() + 1}/${date.getDate()} ${weekday}</span>
+                    <span class="history-stats">${count} pomodoros  ${hours}h ${mins}m</span>
+                `;
+                list.appendChild(row);
+            });
+        }
+
+        function toggle() {
+            if (running) {
+                running = false;
+                clearInterval(interval);
+                document.getElementById('startBtn').textContent = 'START';
+            } else {
+                running = true;
+                document.getElementById('startBtn').textContent = 'PAUSE';
+                interval = setInterval(() => {
+                    if (timeLeft > 0) {
+                        timeLeft--;
+                        updateDisplay();
+                    } else {
+                        complete();
+                    }
+                }, 1000);
+            }
+        }
+
+        function reset() {
+            running = false;
+            clearInterval(interval);
+            timeLeft = WORK_TIME;
+            document.getElementById('startBtn').textContent = 'START';
+            updateDisplay();
+        }
+
+        function complete() {
+            running = false;
+            clearInterval(interval);
+            document.getElementById('startBtn').textContent = 'START';
+            
+            playSound();
+            addPomodoro();
+            updateStats();
+            updateChart();
+            updateHistoryList();
+            
+            timeLeft = WORK_TIME;
+            updateDisplay();
+        }
+
+        // 初始化
+        updateDisplay();
+        updateStats();
+        updateChart();
+        updateHistoryList();
+    </script>
+</body>
+</html>
